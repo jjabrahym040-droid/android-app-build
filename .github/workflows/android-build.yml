@@ -26,6 +26,9 @@ jobs:
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
+        with:
+          # Pinned: AGP 8.x used by the generated projects is incompatible with Gradle 9.
+          gradle-version: '8.7'
 
       - name: Build debug APK
         run: |
