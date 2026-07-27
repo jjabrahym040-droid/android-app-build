@@ -26,4 +26,4 @@ class MainActivity : AppCompatActivity() {
             Toast.makeText(this, "Count incremented to $counter", Toast.LENGTH_SHORT).show()
         }
     }
-}لتى
+}

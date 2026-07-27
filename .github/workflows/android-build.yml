@@ -5,8 +5,14 @@ on:
   push:
     paths:
       - 'app/**'
+      - 'gradle/**'
       - '*.gradle'
       - 'gradle.properties'
+      - '.github/workflows/android-build.yml'
+
+permissions:
+  contents: read
+  actions: read
 
 jobs:
   build:
@@ -27,21 +33,43 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
-          # Pinned: AGP 8.x used by the generated projects is incompatible with Gradle 9.
-          gradle-version: '8.7'
+          # Pinned: keep CI deterministic when no Gradle wrapper exists in the generated project.
+          gradle-version: '8.10.2'
+
+      - name: Install Android SDK packages
+        run: |
+          set -euo pipefail
+          COMPILE_SDK=$(awk '/compileSdk[[:space:]]+[0-9]+/ { print $2; exit }' app/build.gradle)
+          if [ -z "$COMPILE_SDK" ]; then
+            echo "compileSdk is missing from app/build.gradle" >&2
+            exit 1
+          fi
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager             "platform-tools"             "platforms;android-${COMPILE_SDK}"             "build-tools;35.0.0"
+
+      - name: Validate generated Android project
+        run: |
+          test -f settings.gradle
+          test -f build.gradle
+          test -f app/build.gradle
+          test -f app/src/main/AndroidManifest.xml
+          test -d app/src/main/java
 
       - name: Build debug APK
         run: |
+          set -euo pipefail
           if [ -f ./gradlew ]; then
             chmod +x ./gradlew
-            ./gradlew assembleDebug --stacktrace --no-daemon
+            ./gradlew :app:assembleDebug --stacktrace --no-daemon
           else
-            gradle assembleDebug --stacktrace --no-daemon
+            gradle :app:assembleDebug --stacktrace --no-daemon
           fi
+          ls -lh app/build/outputs/apk/debug/
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: app-debug-apk
-          path: '**/build/outputs/apk/debug/*.apk'
+          path: 'app/build/outputs/apk/debug/*.apk'
           if-no-files-found: error
+          retention-days: 7
